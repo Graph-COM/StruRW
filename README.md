@@ -1,4 +1,11 @@
 # StruRW
+This repository is the implementation for the paper [Structural Re-weighting Improves Graph Domain Adaptation](https://arxiv.org/abs/2306.03221) by Shikun Liu, Tianchun Li, Yongbin Feng, Nhan Tran, Han Zhao, Qiu Qiang, and Pan Li. Current Github repo is under construction.
+
+## Overview ##
+
+
+## Datasets ##
+- Fast simulation datasets are the dataset from Pileup mitigation at the Large Hadron Collider
 Our datasets from HEP application are put under the `pileup` folder inside `dataset` folder. We did not include the benchmark datasets here. The DBLP and ACM datasets can be downloaded from the UDAGCN paper github. The Cora and Arxiv data can be found in GOOD survey. 
 
 For the training of each StruRW-based model, go to the corresponding folder
@@ -27,3 +34,5 @@ DANN and StruRW-ADV: `alphatimes`, `alphamin`\
 for any with StruRW model: specify `rw_lmda`, `start_epoch`, `rw_freq`
 
 The choice of hyperparameter and their search space has been specified in the appendix of our paper
+
+
