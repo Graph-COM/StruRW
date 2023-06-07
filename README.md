@@ -3,6 +3,9 @@ This repository is the implementation for the paper [Structural Re-weighting Imp
 
 ## Overview ##
 
+<p align="center"><img src="./pipeline.png" width=85% height=85%></p>
+<p><em>Figure 1.</em> The model pipeline combined with StruRW module, GNN encoder and the generalized loss calculation block that supports StruRW-Adv, StruRW-Mix, and StruRW-ERM. </p>
+
 
 ## Datasets ##
 - Fast simulation datasets are the dataset from Pileup mitigation at the Large Hadron Collider
