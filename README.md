@@ -12,8 +12,8 @@ The basic intuition for StruRW is to upweight/downweight the edges in the source
 
 ## Datasets ##
 - Fast simulation datasets are the High Energy Physics (HEP) dataset from the pileup mitigation task. You can download the dataset root files here: https://zenodo.org/record/8015774
-- The DBLP and ACM datasets can be downloaded from the UDAGCN paper github. 
-- The Cora and Arxiv data can be found in GOOD survey. 
+- The DBLP and ACM datasets can be downloaded following the [UDAGCN](https://github.com/GRAND-Lab/UDAGCN) Github repo. 
+- The Cora and Arxiv data can be downloaded following the [GOOD](https://github.com/divelab/GOOD) Github repo. 
 
 ## Training ##
 For the training of each StruRW-based model, go to the corresponding folder
