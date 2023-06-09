@@ -9,6 +9,20 @@ The basic intuition for StruRW is to upweight/downweight the edges in the source
 <p align="center"><img src="./pipeline.png" width=85% height=85%></p>
 <p><em>Figure 1.</em> The model pipeline combined with StruRW module, GNN encoder and the generalized loss calculation block that supports StruRW-Adv, StruRW-Mix, and StruRW-ERM. </p>
 
+## Environment ##
+The code depends on `Python 3.9` with `PyTorch 1.12.1`, `PyG 2.2.0` and `CUDA 11.3`. Please follow the following steps to create a virtual environment and install the required packages.
+
+Step 1: Create a virtual environment
+```
+conda create --name StruRW python=3.9 -y
+conda activate StruRW
+```
+Step 2: Install dependencies
+```
+conda install -y pytorch==1.12.1 torchvision cudatoolkit=11.3 -c pytorch
+pip install torch-scatter==2.1.0 torch-sparse==0.6.16 torch-cluster==1.6.0 torch-geometric==2.2.0 -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+pip install -r requirements.txt
+```
 
 ## Datasets ##
 - Fast simulation datasets are the High Energy Physics (HEP) dataset from the pileup mitigation task. You can download the dataset root files here: https://zenodo.org/record/8015774
