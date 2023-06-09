@@ -29,6 +29,21 @@ pip install -r requirements.txt
 - The DBLP and ACM datasets can be downloaded following the [UDAGCN](https://github.com/GRAND-Lab/UDAGCN) Github repo. 
 - The Cora and Arxiv data can be downloaded following the [GOOD](https://github.com/divelab/GOOD) Github repo. 
 
+Below are some statistics on the real citation and HEP datasets:
+| Dataset | # Classes | # Nodes | # Edges | # Dim of node feature |
+| :---  | :---:  | :---: |  :---: | :---: |
+| ACM | 6 | 7410  | 22270   | 7537| 
+| DBLP| 6 | 5578  | 14682 | 7537  | 
+| Cora| 70 | 19793  | 126842   | 8710  | 
+| Arxiv| 40 |169343  | 2315598  | 128 | 
+
+| Dataset | PU10_gg | PU30_gg | PU50_gg | PU50_Z($\nu\nu$) | PU140_gg | PU140_Z($\nu\nu$)|
+| :---  | :---:  | :---: |  :---: | :---: |:---: | :---: |
+| Avg # Nodes | 185.17 | 417.84  | 619.00   | 570.90| 1569.04 | 1602.14
+| Avg # Edges | 1085.17 | 3518.43  | 7169.51 | 5894.80  | 42321.71 | 44070.80
+| LC/OC ratio| 2.8600 | 0.2796  | 0.1650   | 0.0927  | 0.0575 | 0.0347
+
+
 ## Training ##
 For the training of each StruRW-based model, go to the corresponding folder
 'StruRW_ADV' stands for adversarial training based model, 'StruRW_ERM' stands for the ERM based model and 'StruRW_Mix' stands for the mixup-based model
