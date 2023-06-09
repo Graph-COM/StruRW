@@ -45,29 +45,31 @@ Below are some statistics on the real citation and HEP datasets:
 
 
 ## Training ##
-For the training of each StruRW-based model, go to the corresponding folder
-'StruRW_ADV' stands for adversarial training based model, 'StruRW_ERM' stands for the ERM based model and 'StruRW_Mix' stands for the mixup-based model
+For the training of each StruRW-based model, go to the corresponding folder. 'StruRW_ADV' stands for adversarial training based model, 'StruRW_ERM' stands for the ERM based model and 'StruRW_Mix' stands for the mixup-based model 
+
+For instance
 ```
+cd ./StruRW_ERM
 python run_nni.py -d [dataset] -m [method] -b [backbone] --dir_name [dir_name]
 ```
 
-`dataset` can be choosen from `SBM`, `dblp_acm`, `cora`, `arxiv`, `Pileup`\
-`method` can be chosen from `ERM` and `ERM_rw`; `DANN` and `DANN_rw`; `Mixup` and `Mixup_rw` for each StruRW-based model and their corresponding baseline. \
-`backbone` can be `GCN` or `GS`\
-`dir_name` is the name you want to name your directory, which will saves the log file of the experiment.
+- `dataset` can be choosen from `SBM`, `dblp_acm`, `cora`, `arxiv`, `Pileup`
+- `method` can be chosen from `ERM` and `ERM_rw`; `DANN` and `DANN_rw`; `Mixup` and `Mixup_rw` for each StruRW-based model and their corresponding baseline
+- `backbone` can be `GCN` or `GS`
+- `dir_name` is the name you want to name your directory, which will saves the log file of the experiment
 
 Other arguments can be passed with specific to models, check the argument list for detailed description
 
 Specific arguments for running different datasets:
-CSBM: `num_nodes`, `sigma`, `ps`, `qs`, `pt`, `qt`\
-dblp_acm: `src_name`, `tgt_name`, specify the name from 'dblp' and 'acm'\
-cora: `domain_split` can be chosen from 'word' or 'degree'\
-arxiv: `domain_split` can be specified as 'degree' if want to run the shift with node degree; otherwise, use `start_year` and `end_year` to specify the time period for training.\
-Pileup: `num_events`, `balanced`, `train_sig`, `train_PU`, `test_sig`, `test_PU`\
+- CSBM: `num_nodes`, `sigma`, `ps`, `qs`, `pt`, `qt`
+- dblp_acm: `src_name`, `tgt_name`, specify the name from 'dblp' and 'acm'
+- cora: `domain_split` can be chosen from 'word' or 'degree'
+- arxiv: `domain_split` can be specified as 'degree' if want to run the shift with node degree; otherwise, use `start_year` and `end_year` to specify the time period for training
+- Pileup: `num_events`, `balanced`, `train_sig`, `train_PU`, `test_sig`, `test_PU`
 
 Specific arguments for model:
-DANN and StruRW-adv: `alphatimes`, `alphamin`\
-For all StruRW-based model: specify `rw_lmda`, `start_epoch`, `rw_freq`
+- DANN and StruRW-adv: `alphatimes`, `alphamin`
+- For all StruRW-based model: specify `rw_lmda`, `start_epoch`, `rw_freq`
 
 The choice of hyperparameter and their search space has been specified in the appendix of our paper
 
