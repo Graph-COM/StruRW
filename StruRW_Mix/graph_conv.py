@@ -174,7 +174,7 @@ class MixUpGCNConv(gnn.MessagePassing):
 
     def message(self, x_j: Tensor, edge_weight: OptTensor, lmda, edge_rw) -> Tensor:
         x_j = (edge_weight.view(-1, 1) * x_j)
-        x_j = lmda * x_j + (1-lmda) * (edge_rw.view(-1, 1) * x_j)
+        x_j = (1-lmda) * x_j + (lmda) * (edge_rw.view(-1, 1) * x_j)
         return x_j
 
     def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
