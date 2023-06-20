@@ -59,8 +59,7 @@ def buildConnections(eta, phi):
     return edge_source, edge_target
 
 
-def prepare_dataset(num_event, indicator_graph, args, datadir):
-    indicator_mask = args.masked_training
+def prepare_dataset(num_event, args, datadir):
     balanced = args.balanced
     edge_feature = args.edge_feature
 
@@ -250,62 +249,24 @@ def prepare_dataset(num_event, indicator_graph, args, datadir):
         if len(graph.Charge_LV) < 10:
             continue
     
-        if indicator_mask == 0:
-        # target is neutral
-            Neu_LV_indices = np.where(np.array(isNeuLV) == True)[0]
-            Neu_PU_indices = np.where(np.array(isNeuPU) == True)[0]
-            np.random.shuffle(Neu_LV_indices)
-            np.random.shuffle(Neu_PU_indices)
+        Neu_LV_indices = np.where(np.array(isNeuLV) == True)[0]
+        Neu_PU_indices = np.where(np.array(isNeuPU) == True)[0]
+        np.random.shuffle(Neu_LV_indices)
+        np.random.shuffle(Neu_PU_indices)
 
-            if len(Neu_LV_indices) < 2:
-                continue
-            num_training_LV = int(len(Neu_LV_indices) * 1)
-            num_training_PU = int(len(Neu_PU_indices) * 1)
-            num_testing_LV = len(Neu_LV_indices) - num_training_LV
-            num_testing_PU = len(Neu_PU_indices) - num_training_PU
+        if len(Neu_LV_indices) < 2:
+            continue
+        num_training_LV = len(Neu_LV_indices)
+        num_training_PU = len(Neu_PU_indices)
 
-            if balanced:
-                num_training_PU = num_training_LV
-                num_testing_PU = num_testing_LV
+        if balanced:
+            num_training_PU = num_training_LV
 
-            training_mask = np.concatenate((Neu_LV_indices[0:num_training_LV],
-                                            Neu_PU_indices[0:num_training_PU]))
-            np.random.shuffle(training_mask)
-
-            testing_mask = np.concatenate((Neu_LV_indices[num_training_LV:],
-                                           Neu_PU_indices[num_training_PU:(num_training_PU + num_testing_PU)]))
-            np.random.shuffle(testing_mask)
-            graph.target_training_mask = training_mask
-            graph.target_testing_mask = testing_mask
-
-        # training and testing on neutral
-        else:
-            Neu_LV_indices = np.where(np.array(isNeuLV) == True)[0]
-            Neu_PU_indices = np.where(np.array(isNeuPU) == True)[0]
-            np.random.shuffle(Neu_LV_indices)
-            np.random.shuffle(Neu_PU_indices)
-
-            if len(Neu_LV_indices) < 2:
-                continue
-            num_training_LV = int(len(Neu_LV_indices) * 1)
-            num_training_PU = int(len(Neu_PU_indices) * 1)
-            num_testing_LV = len(Neu_LV_indices) - num_training_LV
-            num_testing_PU = len(Neu_PU_indices) - num_training_PU
-
-            if balanced:
-                num_training_PU = num_training_LV
-                num_testing_PU = num_testing_LV
-
-            training_mask = np.concatenate((Neu_LV_indices[0:num_training_LV],
-                                            Neu_PU_indices[0:num_training_PU]))
-            np.random.shuffle(training_mask)
-
-            testing_mask = np.concatenate((Neu_LV_indices[num_training_LV:],
-                                           Neu_PU_indices[num_training_PU:(num_training_PU + num_testing_PU)]))
-            np.random.shuffle(testing_mask)
-
-            graph.training_mask = training_mask
-            graph.testing_mask = testing_mask
+        # training and testing on all neutral particles
+        training_mask = np.concatenate((Neu_LV_indices[0:num_training_LV],
+                                        Neu_PU_indices[0:num_training_PU]))
+        np.random.shuffle(training_mask)
+        graph.training_mask = training_mask
 
         graph.num_classes = 2
         print("done!!!")
@@ -456,17 +417,10 @@ def prepare_dataset(num_event, indicator_graph, args, datadir):
     plt.legend()
     plt.show()
     """
-
-    if indicator_graph == True:
-        return data_list
-    else:
-        if indicator_graph == "get_stats":
-            return edge_events, charge_events, label_events
-        else:
-            return feature_events, charge_events, label_events
+    return data_list
 
 
-
+"""
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 parser = ArgumentParser()
 parser.add_argument("--source", type=str, default='dblp')
@@ -487,3 +441,4 @@ parser.add_argument('--edge_feature', type=bool, default = False)
 
 #args = parser.parse_args()
 #prepare_dataset(10, True, args, "./pileup/PU10/test_gg_PU10_3K_v2.root")
+"""
