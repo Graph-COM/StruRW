@@ -20,7 +20,10 @@ def cal_edge_prob(src_graph, tgt_graph, dataset, domain):
         else:
             src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = cal_edge_prob_sep(src_graph, tgt_graph)
     else:
-        src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = cal_edge_prob_multi(src_graph, tgt_graph)
+        if isinstance(src_graph, list):
+            src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = cal_edge_prob_multi(src_graph, tgt_graph)
+        else:
+            src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = cal_edge_prob_sep(src_graph, tgt_graph)
 
     return src_edge_prob, tgt_edge_prob, tgt_true_edge_prob
 
@@ -69,7 +72,22 @@ def cal_edge_prob_same(src_graph, tgt_graph):
 
     return src_edge_prob, tgt_edge_prob, tgt_true_edge_prob
 
-def cal_edge_prob_multi(src_graph, tgt_graph):
+def cal_edge_prob_multi(src_graphs, tgt_graphs):
+    num_class = src_graphs[0].num_classes
+    num_graphs = len(src_graphs)
+    src_edge_prob = torch.zeros(num_class, num_class)
+    tgt_edge_prob = torch.zeros(num_class, num_class)
+    tgt_true_edge_prob = torch.zeros(num_class, num_class)
+
+    for (src_graph, tgt_graph) in zip(src_graphs, tgt_graphs):
+        src_edge_prob_i, tgt_edge_prob_i, tgt_true_edge_prob_i = cal_edge_prob_sep(src_graph, tgt_graph)
+        src_edge_prob = torch.add(src_edge_prob, src_edge_prob_i)
+        tgt_edge_prob = torch.add(tgt_edge_prob, tgt_edge_prob_i)
+        tgt_true_edge_prob = torch.add(tgt_true_edge_prob, tgt_true_edge_prob_i)
+    
+    src_edge_prob = torch.div(src_edge_prob, num_graphs)
+    tgt_edge_prob = torch.div(tgt_edge_prob, num_graphs)
+    tgt_true_edge_prob = torch.div(tgt_true_edge_prob, num_graphs)
     return src_edge_prob, tgt_edge_prob, tgt_true_edge_prob
 
 def cal_edge_prob_sep(src_graph, tgt_graph):
@@ -139,8 +157,6 @@ def calculate_reweight(src_graph, tgt_graph, dataset, domain):
     print(reweight_matrix)
     edge_weight = torch.ones(src_graph.num_edges).to(device)
 
-    # think of way to speed up
-    # rw matrix i,j means j->i
     for i in range(num_class):
         for j in range(num_class):
             idx = np.intersect1d(np.where(np.in1d(src_edge_index[0].cpu().numpy(), graph_label_one_hot.getcol(j).nonzero()[0]))[0],
@@ -148,6 +164,41 @@ def calculate_reweight(src_graph, tgt_graph, dataset, domain):
             edge_weight[idx] = reweight_matrix[i][j].item()
     src_graph.edge_weight = edge_weight
     print(edge_weight)
+    print("rw done")
+
+def calculate_reweight_multi(src_graphs, tgt_graphs, dataset, domain):
+    src_edge_prob, tgt_edge_prob, tgt_true_edge_prob = cal_edge_prob(src_graphs, tgt_graphs, dataset, domain)
+    reweight_matrix = torch.div(tgt_edge_prob, src_edge_prob)
+    reweight_matrix[torch.isinf(reweight_matrix)] = 1
+    reweight_matrix[torch.isnan(reweight_matrix)] = 1
+
+    print(src_edge_prob)
+    print(tgt_edge_prob)
+    print(reweight_matrix)
+
+    if isinstance(src_graphs, list) == False:
+        src_graphs = [src_graphs]
+        tgt_graphs = [tgt_graphs]
+
+    for (src_graph, tgt_graph) in zip(src_graphs, tgt_graphs):
+        num_nodes = src_graph.num_nodes
+        src_edge_index = src_graph.edge_index
+        num_class = src_graph.num_classes
+
+        src_label_one_hot = sp.csr_matrix((np.ones(num_nodes), (np.arange(num_nodes), src_graph.y.cpu().numpy())),
+                                        shape=(num_nodes, num_class))
+        
+        edge_weight = torch.ones(src_graph.num_edges).to(device)
+
+        # think of way to speed up
+        # rw matrix i,j means j->i
+        for i in range(num_class):
+            for j in range(num_class):
+                idx = np.intersect1d(np.where(np.in1d(src_edge_index[0].cpu().numpy(), src_label_one_hot.getcol(j).nonzero()[0]))[0],
+                                    np.where(np.in1d(src_edge_index[1].cpu().numpy(), src_label_one_hot.getcol(i).nonzero()[0]))[0])
+                edge_weight[idx] = reweight_matrix[i][j].item()
+        src_graph.edge_weight = edge_weight
+        #print(edge_weight)
     print("rw done")
 
 def calculate_str_diff(src_graph, tgt_graph, dataset, domain):
