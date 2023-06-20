@@ -69,6 +69,7 @@ def arg_parse():
     parser.add_argument("--rw_lmda", type=float, help='lambda to control the rw', default=0.5)
     parser.add_argument("--use_valid_label", type=bool, help='if we want to use target validation ground truth label in rw', default=True)
     parser.add_argument('--pseudo', type=bool, help='if use pseudo label for reweighting', default=False)
+    parser.add_argument("--rw_average", type=bool, help='if we want to average the edge weights when reweighting for multiple graphs', default=False)
     parser.add_argument("--alphatimes", type=float, help='constant in front of the alpha for DANN', default=1)
     parser.add_argument("--alphamin", type=float, help='min of alpha for DANN', default=0.2)
 
@@ -82,6 +83,7 @@ def arg_parse():
     parser.add_argument("--test_sig", type=str, help='testing signal for PU dataset', default='qq')
     parser.add_argument("--train_PU", type=int, help='training PU level for PU dataset', default=10)
     parser.add_argument("--test_PU", type=int, help='testing PU level for PU dataset', default=30)
+    parser.add_argument("--balanced", type=bool, help='if we keep the label balanced in pileup dataset', default=True)
     parser.add_argument('--plt', type=str, help='plot using tsne or pca', default='pca')
 
     return parser.parse_args()
@@ -150,6 +152,97 @@ def train_one_epoch(model, src_data, tgt_data, args, opt, scheduler, epoch):
 
     return loss, str_diff_i, rw_done
 
+def train_one_epoch_multi(model, src_datasets, tgt_datasets, args, opt, scheduler, epoch):
+    total_loss = 0
+    total_str_diff_epoch = 0
+    rw_num = 0
+    
+    for i, (src_data, tgt_data) in enumerate(zip(src_datasets, tgt_datasets)):
+        src_data = src_data.to(device)
+        tgt_data = tgt_data.to(device)
+        str_diff_i = 0
+
+        if args.reweight and epoch >= (args.start_epoch - 1):
+            if args.pseudo:
+                if args.rw_average == False:
+                    _, pred_tgt = model.forward(tgt_data)
+                    pred_tgt = pred_tgt.argmax(dim=1)
+                    pred_tgt = pred_tgt.to(device)
+                    tgt_data.y_hat = pred_tgt
+                    if args.use_valid_label and i < int(0.2 * args.num_events):
+                        tgt_data.y_hat = tgt_data.y
+
+                    if (epoch - args.start_epoch - 1) % args.rw_freq == 0:
+                        edge_rw.calculate_reweight_multi(src_data, tgt_data, args.dataset, args.domain_split)
+                    _, tgt_diff = edge_rw.calculate_str_diff(src_data, tgt_data, args.dataset, args.domain_split)
+                else:
+                    if i == 0:
+                        for j, (src_data_j, tgt_data_j) in enumerate(zip(src_datasets, tgt_datasets)):
+                            _, pred_tgt = model.forward(tgt_data_j)
+                            pred_tgt = pred_tgt.argmax(dim=1)
+                            pred_tgt = pred_tgt.to(device)
+                            tgt_data_j.y_hat = pred_tgt
+                            if args.use_valid_label and j < int(0.2 * args.num_events):
+                                tgt_data_j.y_hat = tgt_data_j.y
+
+                        if (epoch - args.start_epoch - 1) % args.rw_freq == 0:
+                            edge_rw.calculate_reweight_multi(src_datasets, tgt_datasets, args.dataset, args.domain_split)
+                        _, tgt_diff = edge_rw.calculate_str_diff(src_datasets, tgt_datasets, args.dataset, args.domain_split)
+
+            else:
+                tgt_diff = 0
+                if epoch == args.start_epoch - 1:
+                    edge_rw.calculate_reweight_multi(src_data, tgt_data, args.dataset, args.domain_split)
+                    src_tgt_diff, _ = edge_rw.calculate_str_diff(src_data, tgt_data, args.dataset, args.domain_split)
+                    print(src_tgt_diff)
+
+            if tgt_diff:
+                str_diff_i = tgt_diff.item()
+
+        rw_done = 1
+        all_1 = torch.ones(src_data.num_edges).to(device)
+        if torch.equal(src_data.edge_weight, all_1):
+            rw_done = 0
+        total_str_diff_epoch += str_diff_i
+        rw_num += rw_done
+
+        #p = float(batch_num + epoch * total_batches) / self.total_epoch / total_batches
+        alpha = min((args.alphatimes * (epoch + 1) / args.epochs), args.alphamin)
+        # alpha = min((epoch + 1) / self.total_epoch, 1)
+        # alpha = 1.2 * (1 - (epoch + 1) / self.total_epoch)
+        # alpha = min((self.alphatimes * (2. / (1. + np.exp(-10 * p)) - 1)), self.alphamin)
+        # alpha = (2 * (2. / (1. + np.exp(-10 * p)) - 1))
+        # alpha = 0.2
+
+        [GNN_embed_src, final_embed_src], [pred_src, pred_domain_src] = model.forward(src_data, alpha)
+        [GNN_embed_tgt, final_embed_tgt], [pred_tgt, pred_domain_tgt] = model.forward(tgt_data, alpha)
+
+        mask_src = src_data.training_mask
+        mask_tgt = tgt_data.training_mask
+        label_src = src_data.y[mask_src]
+        pred_src = pred_src[mask_src]
+        pred_domain_src = pred_domain_src[mask_src]
+        pred_domain_tgt = pred_domain_tgt[mask_tgt]
+        domain_label_src = torch.zeros_like(pred_domain_src)
+        domain_label_tgt = torch.ones_like(pred_domain_tgt)
+
+        cls_loss_src = utils.CE_loss(pred_src, label_src)
+        domain_loss_src = utils.BCE_loss(pred_domain_src, domain_label_src)
+        domain_loss_tgt = utils.BCE_loss(pred_domain_tgt, domain_label_tgt)
+
+        if int(0.6 * args.num_events):
+            loss = cls_loss_src + 1 * (domain_loss_src + domain_loss_tgt)
+        else:
+            loss = domain_loss_src + domain_loss_tgt
+        total_loss += loss
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        scheduler.step()
+
+    #rw_done = 1 if rw_num == args.num_events else 0
+    return total_loss, total_str_diff_epoch, rw_num
+
 
 def train(source_dataset, target_dataset, args, seed):
     directory = args.dir_name
@@ -161,8 +254,12 @@ def train(source_dataset, target_dataset, args, seed):
         os.mkdir(path)
     sys.stdout = utils.Logger(path)
 
-    input_dim = source_dataset.num_node_features
-    output_dim = source_dataset.num_classes
+    if isinstance(source_dataset, list):
+        input_dim = source_dataset[0].num_node_features
+        output_dim = source_dataset[0].num_classes
+    else:
+        input_dim = source_dataset.num_node_features
+        output_dim = source_dataset.num_classes
 
     # rewrite the visualization
     # utils.init_visualization(source_dataset, target_dataset, args.masked_training, "testing", input_dim, path, args.plt)
@@ -186,7 +283,10 @@ def train(source_dataset, target_dataset, args, seed):
 
     for epoch in range(args.epochs):
         model.train()
-        loss, str_diff_i, rw_done = train_one_epoch(model, source_dataset, target_dataset, args, opt, scheduler, epoch)
+        if isinstance(source_dataset, list):
+            loss, str_diff_i, rw_done = train_one_epoch_multi(model, source_dataset, target_dataset, args, opt, scheduler, epoch)
+        else:
+            loss, str_diff_i, rw_done = train_one_epoch(model, source_dataset, target_dataset, args, opt, scheduler, epoch)
         rw_rec += rw_done
         if epoch >= args.start_epoch:
             str_diff.append(str_diff_i)
@@ -238,12 +338,19 @@ def train(source_dataset, target_dataset, args, seed):
     return final_report
 
 def evaluate(source_dataset, target_dataset, model):
-    loss_src_train, dc_loss_src_train, GNN_embed_src_train, final_embed_src_train, acc_src_train, auc_src_train = evaluate_dataset(source_dataset, model, "src_train")
-    loss_src_valid, dc_loss_src_valid, GNN_embed_src_valid, final_embed_src_valid, acc_src_valid, auc_src_valid = evaluate_dataset(source_dataset, model, "src_valid")
-    loss_src_test, dc_loss_src_test, GNN_embed_src_test, final_embed_src_test, acc_src_test, auc_src_test = evaluate_dataset(source_dataset, model, "src_test")
-    loss_tgt_valid, dc_loss_tgt_valid, GNN_embed_tgt_valid, final_embed_tgt_valid, acc_tgt_valid, auc_tgt_valid = evaluate_dataset(target_dataset, model, "tgt_valid")
-    loss_tgt_test, dc_loss_tgt_test, GNN_embed_tgt_test, final_embed_tgt_test, acc_tgt_test, auc_tgt_test = evaluate_dataset(target_dataset, model, "tgt_test")
-
+    if isinstance(source_dataset, list):
+        num_events = len(source_dataset)
+        loss_src_train, dc_loss_src_train, GNN_embed_src_train, final_embed_src_train, acc_src_train, auc_src_train = evaluate_dataset_multi(source_dataset[0:int(0.6*num_events)], model, "src_train")
+        loss_src_valid, dc_loss_src_valid, GNN_embed_src_valid, final_embed_src_valid, acc_src_valid, auc_src_valid = evaluate_dataset_multi(source_dataset[int(0.6*num_events):int(0.8*num_events)], model, "src_valid")
+        loss_src_test, dc_loss_src_test, GNN_embed_src_test, final_embed_src_test, acc_src_test, auc_src_test = evaluate_dataset_multi(source_dataset[int(0.8*num_events):], model, "src_test")
+        loss_tgt_valid, dc_loss_tgt_valid, GNN_embed_tgt_valid, final_embed_tgt_valid, acc_tgt_valid, auc_tgt_valid = evaluate_dataset_multi(target_dataset[0:int(0.2*num_events)], model, "tgt_valid")
+        loss_tgt_test, dc_loss_tgt_test, GNN_embed_tgt_test, final_embed_tgt_test, acc_tgt_test, auc_tgt_test = evaluate_dataset_multi(target_dataset[int(0.2*num_events):], model, "tgt_test")
+    else:
+        loss_src_train, dc_loss_src_train, GNN_embed_src_train, final_embed_src_train, acc_src_train, auc_src_train = evaluate_dataset(source_dataset, model, "src_train")
+        loss_src_valid, dc_loss_src_valid, GNN_embed_src_valid, final_embed_src_valid, acc_src_valid, auc_src_valid = evaluate_dataset(source_dataset, model, "src_valid")
+        loss_src_test, dc_loss_src_test, GNN_embed_src_test, final_embed_src_test, acc_src_test, auc_src_test = evaluate_dataset(source_dataset, model, "src_test")
+        loss_tgt_valid, dc_loss_tgt_valid, GNN_embed_tgt_valid, final_embed_tgt_valid, acc_tgt_valid, auc_tgt_valid = evaluate_dataset(target_dataset, model, "tgt_valid")
+        loss_tgt_test, dc_loss_tgt_test, GNN_embed_tgt_test, final_embed_tgt_test, acc_tgt_test, auc_tgt_test = evaluate_dataset(target_dataset, model, "tgt_test")
     report = {'acc_tgt_valid': acc_tgt_valid, 'auc_tgt_valid': auc_tgt_valid,
                     'acc_tgt_test': acc_tgt_test, 'auc_tgt_test': auc_tgt_test,
                     'acc_src_valid': acc_src_valid, 'auc_src_valid': auc_src_valid,
@@ -295,6 +402,52 @@ def evaluate_dataset(data, model, phase):
         acc, auc = utils.get_scores(pred, label)
 
     return loss, dc_loss, GNN_embed, final_embed, acc, auc
+
+def evaluate_dataset_multi(datasets, model, phase):
+    total_loss = 0
+    total_dc_loss = 0
+    total_GNN_embed = None
+    total_final_embed = None
+    total_acc = 0
+    total_auc = 0
+    num_events = len(datasets)
+    num_auc = 0
+    model.eval()
+    for data in datasets:
+        data = data.to(device)
+        with torch.no_grad():
+            label = data.y
+            [GNN_embed, final_embed], [pred, pred_domain] = model.forward(data, 1)
+            
+            mask = data.training_mask
+            GNN_embed = GNN_embed[mask]
+            final_embed = final_embed[mask]
+            pred = pred[mask]
+            pred_domain = pred_domain[mask]
+            if "src" in phase:
+                domain_label = torch.zeros_like(pred_domain)
+            else:
+                domain_label = torch.ones_like(pred_domain)
+            label = label[mask]
+
+            loss = utils.CE_loss(pred, label).item()
+            dc_loss = utils.BCE_loss(pred_domain, domain_label).item()
+            acc, auc = utils.get_scores(pred, label)
+            total_loss += loss
+            total_dc_loss += dc_loss
+            total_acc += acc
+            if auc is not None:
+                total_auc += auc
+                num_auc += 1
+
+            if total_GNN_embed == None:
+                total_GNN_embed = GNN_embed
+                total_final_embed = final_embed
+            else:
+                total_GNN_embed = torch.cat((total_GNN_embed, GNN_embed), dim=0)
+                total_final_embed = torch.cat((total_final_embed, final_embed), dim=0)
+
+    return total_loss/num_events, total_dc_loss/num_events, total_GNN_embed, total_final_embed, total_acc/num_events, total_auc/num_auc
 
 def get_avg_std_report(reports):
     all_keys = {k: [] for k in reports[0]}
@@ -388,7 +541,12 @@ def main():
                 source_dataset = datasets.prepare_arxiv("../../StruRW_dataset", [args.start_year, args.end_year])
                 target_dataset = datasets.prepare_arxiv("../../StruRW_dataset", [2018, 2020])
         else:
-            print("other datasets")
+            source_dir = f"../../StruRW_dataset/pileup/test_{args.train_sig}_PU{args.train_PU}.root"
+            target_dir = f"../../StruRW_dataset/pileup/test_{args.test_sig}_PU{args.test_PU}.root"
+            
+            source_dataset = datasets.pileup(args.num_events, args, source_dir)
+            target_dataset = datasets.pileup(args.num_events, args, target_dir)
+            print("Pileup")
         
         report_dict = train(source_dataset, target_dataset, args, seed)
         reports.append(report_dict)
