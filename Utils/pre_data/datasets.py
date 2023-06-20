@@ -62,11 +62,9 @@ def edges_to_adj(edges, num_node):
     return adj, edge_index
 
 
-def pileup(num_events, indicator_graph, indicator_target_sep, args,
-                   datadir="dataset/pileup/new_pileup/test_gg.root"):
-    train_event = int(0.7 * num_events)
-    graph_list = prepare_pileup.prepare_dataset(num_events, indicator_graph, args, datadir)
-    return graph_list[0:train_event], graph_list[train_event:]
+def pileup(num_events, args, datadir):
+    graph_list = prepare_pileup.prepare_dataset(num_events, args, datadir)
+    return graph_list
 
 def scbm_multi(num_nodes, SIGMA, p, q):
     B = [[p, q, q],
