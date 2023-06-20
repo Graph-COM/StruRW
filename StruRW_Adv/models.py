@@ -202,7 +202,7 @@ class GCN_reweight(MessagePassing):
 
     def message(self, x_j: Tensor, edge_weight: OptTensor, lmda, edge_rw) -> Tensor:
         x_j = (edge_weight.view(-1, 1) * x_j)
-        x_j = lmda * x_j + (1-lmda) * (edge_rw.view(-1, 1) * x_j)
+        x_j = (1-lmda) * x_j + (lmda) * (edge_rw.view(-1, 1) * x_j)
         return x_j
 
     def message_and_aggregate(self, adj_t: SparseTensor, x: Tensor) -> Tensor:
@@ -223,7 +223,7 @@ class GS_reweight(pyg_nn.MessagePassing):
 
     def message(self, x_j, edge_index, edge_weight, lmda):
         x_j = self.lin(x_j)
-        x_j = lmda * x_j + (1-lmda) * (edge_weight.view(-1, 1) * x_j)
+        x_j = (1-lmda) * x_j + (lmda) * (edge_weight.view(-1, 1) * x_j)
         #print(lmda)
         return x_j
 
